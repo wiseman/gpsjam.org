@@ -7,20 +7,19 @@
     <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
     <link href="css/mapbox-gl.css" rel="stylesheet">
     <script src="js/mapbox-gl.js"></script>
-    <script src="js/turf.min.js"></script>
     <script src="js/d3.v4.min.js"></script>
-    <script src="js/lodash.min.js"></script>
-    <script src="js/kdbush.min.js"></script>
-    <script src="js/jquery-3.6.0.min.js" integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4="
-        crossorigin="anonymous"></script>
     <script src="https://unpkg.com/h3-js"></script>
     <script src="js/geojson2h3.js"></script>
+    <script src="js/jquery-3.6.0.min.js" integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4="
+        crossorigin="anonymous"></script>
+
     <style>
         body {
             margin: 0;
             padding: 0;
             font-family: 'B612';
             background: #222;
+            color: #ddd;
         }
 
         #map {
@@ -28,6 +27,12 @@
             top: 0;
             bottom: 0;
             width: 100%;
+        }
+
+        #date {
+            font-size: 3em;
+            margin-left: 0.2em;
+            margin-top: 0.2em;
         }
 
         p {
@@ -42,21 +47,30 @@
 </head>
 
 <body>
+    <div id="date"></div>
     <div id="map"></div>
     <script>
+
+        // Parse string like "2022-05-13" into a Date.
+        function parseDate(str) {
+            var mdy = str.split('-');
+            return new Date(mdy[0], mdy[1] - 1, mdy[2]);
+        }
+
+        const mapDate = parseDate("2022-05-13");
+
+        const INTERFERENCE_HIGH = 'high';
+        const INTERFERENCE_MED = 'med';
+        const INTERFERENCE_LOW = 'low';
 
         function interferenceLevel(good_gps, bad_gps) {
             const bad_frac = (bad_gps - 1) / (bad_gps + good_gps);
             if (bad_frac < 0.02) {
-                return "low";
+                return INTERFERENCE_LOW
             } else if (bad_frac < 0.10) {
-                return "med";
-            } else if (bad_frac < 2.0) {
-                return "high";
+                return INTERFERENCE_MED
             } else {
-                console.log("wtf");
-                console.log(good_gps);
-                console.log(bad_gps);
+                return INTERFERENCE_HIGH
             }
         }
 
@@ -73,6 +87,30 @@
             return false;
         }
 
+        function loadH3file(date, map) {
+            // Convert date to a string like "2022-05-13" with zero-padding.
+            const dateStr = date.getFullYear() + "-" + ("0" + (date.getMonth() + 1)).slice(-2) + "-" + ("0" + date.getDate()).slice(-2)
+            $('#date').text(dateStr);
+            const h3Filename =  dateStr + '-h3_4.csv'
+            let url = 'data/' + h3Filename;
+            // Loop over low, med, high and remove that layer.
+            d3.csv(
+                url,
+                allHexes => {
+                    if (map.getLayer('outline')) {
+                        map.removeLayer('outline');
+                    }
+                    for (level of ['low', 'med', 'high']) {
+                        const layerName = `${level}`;
+                        if (map.getLayer(layerName)) {
+                            map.removeLayer(`${level}`);
+                            map.removeSource(`${level}-interference-src`);
+                        }
+                    }
+                    addH3CsvToMap(allHexes, map);
+                });
+        }
+
         let initLoad = true;
 
         mapboxgl.accessToken = 'pk.eyJ1Ijoid2lzZW1hbiIsImEiOiJHbzAtOHgwIn0.Pj1Nx77LS1-ujzRKJVOttA';
@@ -85,244 +123,99 @@
             // maxZoom: 6
         });
 
+        function addH3CsvToMap(rows, map) {
+            // Build GeoJSON from the H3 csv data. We build 3 GeoJSON
+            // features: One containing hexes with high interference
+            // levels, one with medium interference, and one with low
+            // interference.
+            let hexes = {
+                'low': [],
+                'med': [],
+                'high': []
+            };
+            allHexes = rows.filter(h => !isH3IndexAM(h.hex));
+            allHexes.forEach(h => {
+                let level = interferenceLevel(
+                    parseInt(h.count_good_aircraft),
+                    parseInt(h.count_bad_aircraft));
+                hexes[level].push(h.hex);
+            });
+            map.addSource('low-interference-src', {
+                type: 'geojson',
+                data: h3SetToFeature(hexes[INTERFERENCE_LOW])
+            });
+            map.addSource('med-interference-src', {
+                type: 'geojson',
+                data: h3SetToFeature(hexes[INTERFERENCE_MED])
+            });
+            map.addSource('high-interference-src', {
+                type: 'geojson',
+                data: h3SetToFeature(hexes[INTERFERENCE_HIGH])
+            });
+            // Add a new layer to visualize the polygon.
+            map.addLayer({
+                'id': 'high',
+                'type': 'fill',
+                'source': 'high-interference-src',
+                'layout': {},
+                'paint': {
+                    'fill-color': '#ff3333',
+                    'fill-opacity': 0.5
+                }
+            });
+            map.addLayer({
+                'id': 'outline',
+                'type': 'line',
+                'source': 'high-interference-src',
+                'layout': {},
+                'paint': {
+                    'line-color': '#000',
+                    'line-width': 1
+                }
+            });
+            map.addLayer({
+                'id': 'low',
+                'type': 'fill',
+                'source': 'low-interference-src',
+                'layout': {},
+                'paint': {
+                    'fill-color': '#33ff33',
+                    'fill-opacity': 0.5
+                }
+            });
+            console.log(`Added ${hexes['low'].length} low hexes`);
+            map.addLayer({
+                'id': 'med',
+                'type': 'fill',
+                'source': 'med-interference-src', // reference the data source
+                'layout': {},
+                'paint': {
+                    'fill-color': '#ffff33',
+                    'fill-opacity': 0.5
+                }
+            });
+            console.log(`Added ${hexes['med'].length} med hexes`);
+
+        }
+
         map.on('load', () => {
             map.once('idle', () => {
-                d3.csv(
-                    "./data/h3.csv",
-                    allHexes => {
-                        // Build GeoJSON from the H3 csv data. We build 3 GeoJSON
-                        // features: One containing hexes with high interference
-                        // levels, one with medium interference, and one with low
-                        // interference.
-                        let hexes = {
-                            'low': [],
-                            'med': [],
-                            'high': []
-                        };
-                        console.log(`Before trans-anti-meridian filtering: ${allHexes.length}`);
-                        allHexes = allHexes.filter(h => !isH3IndexAM(h.hex));
-                        console.log(`After trans-anti-meridian filtering: ${allHexes.length}`);
-                        allHexes.forEach(h => {
-                            let level = interferenceLevel(parseInt(h.count_good_aircraft), parseInt(h.count_bad_aircraft));
-                            if (h.hex == '842db0dffffffff') {
-                                console.log(h);
-                                console.log(level);
-                            }
-                            hexes[level].push(h.hex);
-                        });
-                        map.addSource('low', {
-                            type: 'geojson',
-                            data: h3SetToFeature(hexes['low'])
-                        });
-                        map.addSource('med', {
-                            type: 'geojson',
-                            data: h3SetToFeature(hexes['med'])
-                        });
-                        map.addSource('high', {
-                            type: 'geojson',
-                            data: h3SetToFeature(hexes['high'])
-                        });
-                        // Add a new layer to visualize the polygon.
-                        map.addLayer({
-                            'id': 'low',
-                            'type': 'fill',
-                            'source': 'low', // reference the data source
-                            'layout': {},
-                            'paint': {
-                                'fill-color': '#33ff33', // blue color fill
-                                'fill-opacity': 0.5
-                            }
-                        });
-                        console.log(`Added ${hexes['low'].length} low hexes`);
-                        map.addLayer({
-                            'id': 'med',
-                            'type': 'fill',
-                            'source': 'med', // reference the data source
-                            'layout': {},
-                            'paint': {
-                                'fill-color': '#ffff33', // blue color fill
-                                'fill-opacity': 0.5
-                            }
-                        });
-                        console.log(`Added ${hexes['med'].length} med hexes`);
-                        map.addLayer({
-                            'id': 'high',
-                            'type': 'fill',
-                            'source': 'high', // reference the data source
-                            'layout': {},
-                            'paint': {
-                                'fill-color': '#ff3333', // blue color fill
-                                'fill-opacity': 0.5
-                            }
-                        });
-                        map.addLayer({
-                            'id': 'outline',
-                            'type': 'line',
-                            'source': 'high',
-                            'layout': {},
-                            'paint': {
-                                'line-color': '#000',
-                                'line-width': 1
-                            }
-                        });
-                        console.log(`Added ${hexes['high'].length} high hexes`);
-
-                        // Add a black outline around the polygon.
-                        // map.addLayer({
-                        //     'id': 'outline',
-                        //     'type': 'line',
-                        //     'source': 'maine',
-                        //     'layout': {},
-                        //     'paint': {
-                        //         'line-color': '#000',
-                        //         'line-width': 3
-                        //     }
-                        // });
-                    });
+                loadH3file(mapDate, map);
             });
         });
 
-        function getRunways(runways) {
-            const center = map.getCenter();
-            const newPoint = turf.point([center.lng, center.lat]);
-            poiTracker.addPoi(newPoint);
-            const heading = poiTracker.heading();
-            if (heading) {
-                buildRunwaysSpoke(runways, newPoint, heading);
+        $(document).on('keypress', (e) => {
+            if (e.key === 'a') {
+                // Subtract one day from mapDate.
+                mapDate.setDate(mapDate.getDate() - 1);
+                loadH3file(mapDate, map);
+            } else if (e.key === 's') {
+                mapDate.setDate(mapDate.getDate() + 1);
+                loadH3file(mapDate, map);
             }
-        }
+        });
 
-        function buildRunwaysSpoke(runways, point, heading) {
-            let nearestRunways = turf.featureCollection([]);
-            let nearestRunwayLines = turf.featureCollection([]);
 
-            let candidates = spatialIndex.within(point.geometry.coordinates, 210);
-            for (nearest of candidates) {
-                if (turf.distance(point, nearest.geometry, { unit: 'kilometers' }) >= 200) {
-                    continue;
-                }
-                // Try to keep the length of the runway line in pixels roughly
-                // constant.
-                const length = 1.5 ** (15 - map.getZoom());
-                const nearestLine = runwayLine(nearest, length);
-
-                let runwayHeading = normalizeHeading(nearest.properties.heading);
-                heading = normalizeHeading(heading);
-                if (mode === 'aligned') {
-                    // If either the runway heading or the reciprocal heading is
-                    // close, then render it.
-                    if (Math.abs(headingDiff(heading, runwayHeading)) < 20
-                        || Math.abs(headingDiff(heading, (normalizeHeading(runwayHeading + 180)))) < 20) {
-                        nearestRunways.features.push(nearest);
-                        nearestRunwayLines.features.push(nearestLine);
-                    }
-                } else if (mode === 'radial') {
-                    heading = normalizeHeading(turf.bearing(point, nearest.geometry));
-                    if (Math.abs(headingDiff(heading, runwayHeading)) < 20
-                        || Math.abs(headingDiff(heading, (normalizeHeading(runwayHeading + 180)))) < 20) {
-                        nearestRunways.features.push(nearest);
-                        nearestRunwayLines.features.push(nearestLine);
-                    }
-                }
-            }
-            if (initLoad) {
-                addLayers(runways, nearestRunways, nearestRunwayLines);
-            } else {
-                map.getSource('newPoint').setData(nearestRunways);
-                map.getSource('newLine').setData(nearestRunwayLines);
-            }
-        }
-
-        function runwayLine(runway, length) {
-            const heading = (runway.properties.heading > 180) ? runway.properties.heading - 360 : runway.properties.heading;
-            const line = turf.lineString(
-                [
-                    turf.destination(runway.geometry.coordinates, length / 2, heading + 180, { units: 'kilometers' }).geometry.coordinates,
-                    turf.destination(runway.geometry.coordinates, length / 2, heading, { units: 'kilometers' }).geometry.coordinates
-                ]);
-            return line;
-        }
-
-        function addLayers(airports, nearest, route) {
-            initLoad = false;
-
-            map.addSource('points', {
-                'type': 'geojson',
-                'data': airports
-            });
-
-            map.addSource('newPoint', {
-                'type': 'geojson',
-                'data': nearest
-            });
-
-            map.addSource('newLine', {
-                'type': 'geojson',
-                'data': route
-            });
-
-            map.addLayer({
-                'id': 'routeLayer',
-                'type': 'line',
-                'source': 'newLine',
-                'layout': {
-                    'line-join': 'round',
-                    'line-cap': 'round'
-                },
-                'paint': {
-                    'line-color': 'red',
-                    'line-width': [
-                        'interpolate',
-                        ['linear'],
-                        ['zoom'],
-                        0,
-                        0.5,
-                        3,
-                        4
-                    ]
-                }
-            });
-
-            map.addLayer({
-                'id': 'globe-points',
-                'type': 'circle',
-                'source': 'points',
-                'paint': {
-                    'circle-radius': [
-                        'interpolate',
-                        ['linear'],
-                        ['zoom'],
-                        0,
-                        0.1,
-                        3,
-                        3
-                    ],
-                    'circle-opacity': 1,
-                    'circle-blur': 0,
-                    'circle-color': '#555'
-                }
-            });
-
-            map.addLayer({
-                'id': 'globe-newPoint',
-                'type': 'circle',
-                'source': 'newPoint',
-                'paint': {
-                    'circle-radius': [
-                        'interpolate',
-                        ['linear'],
-                        ['zoom'],
-                        0,
-                        0.25,
-                        3,
-                        4
-                    ],
-                    'circle-opacity': 1,
-                    'circle-blur': 0,
-                    'circle-color': 'red'
-                }
-            });
-        }
     </script>
 </body>
 
