@@ -10,8 +10,6 @@
     <script src="js/d3.v4.min.js"></script>
     <script src="https://unpkg.com/h3-js"></script>
     <script src="js/geojson2h3.js"></script>
-    <script src="js/jquery-3.6.0.min.js" integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4="
-        crossorigin="anonymous"></script>
 
     <style>
         body {
@@ -35,6 +33,15 @@
             margin-top: 0.2em;
         }
 
+        input#datepicker {
+            margin: 0 auto;
+            font-size: 3em;
+            margin-left: 0.2em;
+            margin-top: 0.2em;
+            position: absolute;
+            z-index: 1000;
+        }
+
         p {
             margin-left: 1cm;
         }
@@ -47,7 +54,7 @@
 </head>
 
 <body>
-    <div id="date"></div>
+    <input id="datepicker" type="date" value="2022-07-01">
     <div id="map"></div>
     <script>
 
@@ -57,7 +64,7 @@
             return new Date(mdy[0], mdy[1] - 1, mdy[2]);
         }
 
-        const mapDate = parseDate("2022-05-13");
+        const mapDate = parseDate("2022-07-01");
 
         const INTERFERENCE_HIGH = 'high';
         const INTERFERENCE_MED = 'med';
@@ -89,9 +96,10 @@
 
         function loadH3file(date, map) {
             // Convert date to a string like "2022-05-13" with zero-padding.
-            const dateStr = date.getFullYear() + "-" + ("0" + (date.getMonth() + 1)).slice(-2) + "-" + ("0" + date.getDate()).slice(-2)
-            $('#date').text(dateStr);
-            const h3Filename =  dateStr + '-h3_4.csv'
+            const dateStr = date.getUTCFullYear() + "-" + ("0" + (date.getUTCMonth() + 1)).slice(-2) + "-" + ("0" + date.getUTCDate()).slice(-2)
+            document.getElementById('datepicker').value = dateStr;
+            console.log(`Loading ${date}. Set picker to ${dateStr}`);
+            const h3Filename = dateStr + '-h3_4.csv'
             let url = 'data/' + h3Filename;
             // Loop over low, med, high and remove that layer.
             d3.csv(
@@ -128,6 +136,7 @@
             // features: One containing hexes with high interference
             // levels, one with medium interference, and one with low
             // interference.
+            let start = Date.now();
             let hexes = {
                 'low': [],
                 'med': [],
@@ -140,17 +149,21 @@
                     parseInt(h.count_bad_aircraft));
                 hexes[level].push(h.hex);
             });
+            const lowGeoJson = h3SetToFeatureCollection(hexes[INTERFERENCE_LOW]);
+            const medGeoJson = h3SetToFeatureCollection(hexes[INTERFERENCE_MED]);
+            const highGeoJson = h3SetToFeatureCollection(hexes[INTERFERENCE_HIGH]);
+            console.log(`Creating GeoJSON took ${(Date.now() - start)} ms`);
             map.addSource('low-interference-src', {
                 type: 'geojson',
-                data: h3SetToFeature(hexes[INTERFERENCE_LOW])
+                data: lowGeoJson
             });
             map.addSource('med-interference-src', {
                 type: 'geojson',
-                data: h3SetToFeature(hexes[INTERFERENCE_MED])
+                data: medGeoJson
             });
             map.addSource('high-interference-src', {
                 type: 'geojson',
-                data: h3SetToFeature(hexes[INTERFERENCE_HIGH])
+                data: highGeoJson
             });
             // Add a new layer to visualize the polygon.
             map.addLayer({
@@ -163,16 +176,17 @@
                     'fill-opacity': 0.5
                 }
             });
-            map.addLayer({
-                'id': 'outline',
-                'type': 'line',
-                'source': 'high-interference-src',
-                'layout': {},
-                'paint': {
-                    'line-color': '#000',
-                    'line-width': 1
-                }
-            });
+            // map.addLayer({
+            //     'id': 'outline',
+            //     'type': 'line',
+            //     'source': 'high-interference-src',
+            //     'layout': {},
+            //     'paint': {
+            //         'line-color': '#000',
+            //         'line-width': 1
+            //     }
+            // });
+            console.log(`Added ${hexes['high'].length} high hexes`);
             map.addLayer({
                 'id': 'low',
                 'type': 'fill',
@@ -194,6 +208,7 @@
                     'fill-opacity': 0.5
                 }
             });
+            console.log(`Adding sources and layers took ${(Date.now() - start)} ms`);
             console.log(`Added ${hexes['med'].length} med hexes`);
 
         }
@@ -204,18 +219,11 @@
             });
         });
 
-        $(document).on('keypress', (e) => {
-            if (e.key === 'a') {
-                // Subtract one day from mapDate.
-                mapDate.setDate(mapDate.getDate() - 1);
-                loadH3file(mapDate, map);
-            } else if (e.key === 's') {
-                mapDate.setDate(mapDate.getDate() + 1);
-                loadH3file(mapDate, map);
-            }
+        // When the date picker value changes, load that day's data.
+        document.getElementById('datepicker').addEventListener('change', function () {
+            const date = new Date(this.value);
+            loadH3file(date, map);
         });
-
-
     </script>
 </body>
 
