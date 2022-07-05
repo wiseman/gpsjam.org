@@ -27,23 +27,35 @@
             width: 100%;
         }
 
+        h1 {
+            margin: 0cm 0cm 0.1cm 0cm;
+        }
+
+        h1 a {
+            text-decoration: none;
+            color: #ddd;
+        }
+
+        a {
+            text-decoration: none;
+            color: #df86fa
+        }
+
+        div#content {
+            position: absolute;
+            z-index: 1000;
+            padding: 0.1cm;
+            margin: 0.1cm;
+            background: #444;
+        }
+
         #date {
             font-size: 3em;
-            margin-left: 0.2em;
-            margin-top: 0.2em;
         }
 
         input#datepicker {
-            margin: 0 auto;
             font-size: 3em;
-            margin-left: 0.2em;
-            margin-top: 0.2em;
-            position: absolute;
-            z-index: 1000;
-        }
-
-        p {
-            margin-left: 1cm;
+            margin-top: 0.5cm;
         }
 
         @font-face {
@@ -54,7 +66,11 @@
 </head>
 
 <body>
-    <input id="datepicker" type="date" value="2022-07-01">
+    <div id="content">
+        <h1><a href="/">gpsjam.org</a></h1>
+        Daily maps of GPS interference | <a href="/about/">About</a> | <a href="/faq/">FAQ</a><br>
+        <input id="datepicker" type="date" value="2022-07-01"><br>
+    </div>
     <div id="map"></div>
     <script>
 
@@ -161,11 +177,13 @@
             // levels, one with medium interference, and one with low
             // interference.
             let start = Date.now();
-            let hexes = {
-                'low': [],
-                'med': [],
-                'high': []
-            };
+            let hexes = {};
+            hexes[INTERFERENCE_LOW] = [];
+            hexes[INTERFERENCE_MED] = [];
+            hexes[INTERFERENCE_HIGH] = [];
+            // For now let's ignore the hexes that cross the anti-meridian.
+            // Someday, let's fix their coordinates. See
+            // https://docs.mapbox.com/mapbox-gl-js/example/line-across-180th-meridian/
             allHexes = rows.filter(h => !isH3IndexAM(h.hex));
             allHexes.forEach(h => {
                 let level = interferenceLevel(
@@ -181,36 +199,14 @@
                 type: 'geojson',
                 data: lowGeoJson
             });
-            map.addSource('med-interference-src', {
-                type: 'geojson',
-                data: medGeoJson
-            });
             map.addSource('high-interference-src', {
                 type: 'geojson',
                 data: highGeoJson
             });
-            // Add a new layer to visualize the polygon.
-            map.addLayer({
-                'id': 'high',
-                'type': 'fill',
-                'source': 'high-interference-src',
-                'layout': {},
-                'paint': {
-                    'fill-color': '#ff3333',
-                    'fill-opacity': 0.5
-                }
+            map.addSource('med-interference-src', {
+                type: 'geojson',
+                data: medGeoJson
             });
-            // map.addLayer({
-            //     'id': 'outline',
-            //     'type': 'line',
-            //     'source': 'high-interference-src',
-            //     'layout': {},
-            //     'paint': {
-            //         'line-color': '#000',
-            //         'line-width': 1
-            //     }
-            // });
-            console.log(`Added ${hexes['high'].length} high hexes`);
             map.addLayer({
                 'id': 'low',
                 'type': 'fill',
@@ -221,7 +217,16 @@
                     'fill-opacity': 0.5
                 }
             });
-            console.log(`Added ${hexes['low'].length} low hexes`);
+            map.addLayer({
+                'id': 'high',
+                'type': 'fill',
+                'source': 'high-interference-src',
+                'layout': {},
+                'paint': {
+                    'fill-color': '#ff3333',
+                    'fill-opacity': 0.5
+                }
+            });
             map.addLayer({
                 'id': 'med',
                 'type': 'fill',
@@ -232,7 +237,9 @@
                     'fill-opacity': 0.5
                 }
             });
-            console.log(`Added ${hexes['med'].length} med hexes`);
+            console.log(`Added ${hexes[INTERFERENCE_LOW].length} low hexes`);
+            console.log(`Added ${hexes[INTERFERENCE_MED].length} med hexes`);
+            console.log(`Added ${hexes[INTERFERENCE_HIGH].length} high hexes`);
             console.log(`Adding sources and layers took ${(Date.now() - start)} ms`);
         }
 
@@ -248,8 +255,13 @@
             const lon = map.getCenter().lng;
             const zoom = map.getZoom();
             const dateStr = mapDate.getUTCFullYear() + "-" + ("0" + (mapDate.getUTCMonth() + 1)).slice(-2) + "-" + ("0" + mapDate.getUTCDate()).slice(-2)
-            const url = `/?lat=${lat}&lon=${lon}&z=${zoom}&date=${dateStr}`;
-            window.history.pushState({}, '', url);
+            // Create a new URL based on the current URL plus the new lat, lon, zoom, and date.
+            let url = new URL(window.location.href);
+            url.searchParams.set('lat', lat);
+            url.searchParams.set('lon', lon);
+            url.searchParams.set('z', zoom);
+            url.searchParams.set('date', dateStr);
+            window.history.pushState({}, '', url.href);
         }
 
         map.on('moveend', updateUrl);
