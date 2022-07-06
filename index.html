@@ -49,18 +49,22 @@
             background: #444;
         }
 
-        #date {
-            font-size: 3em;
-        }
-
         input#datepicker {
             font-size: 3em;
             margin-top: 0.5cm;
         }
 
+        input#datepicker.screenshot {
+            font-size: 2em;
+        }
+
         @font-face {
             font-family: B612;
             src: url(fonts/B612-Regular.ttf);
+        }
+
+        .infolinks.screenshot {
+            display: none;
         }
     </style>
 </head>
@@ -68,8 +72,8 @@
 <body>
     <div id="content">
         <h1><a href="/">gpsjam.org</a></h1>
-        Daily maps of GPS interference | <a href="/about/">About</a> | <a href="/faq/">FAQ</a><br>
-        <input id="datepicker" type="date" value="2022-07-01"><br>
+        Daily maps of GPS interference<span class="infolinks maybe-screenshot"> | <a href="/about/">About</a> | <a href="/faq/">FAQ</a></span><br>
+        <input id="datepicker" class="maybe-screenshot" type="date" value="2022-07-01"><br>
     </div>
     <div id="map"></div>
     <script>
@@ -139,6 +143,12 @@
         const queryString = window.location.search;
         const urlParams = new URLSearchParams(queryString);
 
+        if (urlParams.has('screenshot')) {
+            for (e of document.getElementsByClassName('maybe-screenshot')) {
+                e.classList.add("screenshot");
+            }
+
+        }
         // If the URL contains a date, load that date.
         if (urlParams.has('date')) {
             const dateStr = urlParams.get('date');
@@ -251,9 +261,9 @@
 
         function updateUrl() {
             // Put the map's current lat and lon into the URL.
-            const lat = map.getCenter().lat;
-            const lon = map.getCenter().lng;
-            const zoom = map.getZoom();
+            const lat = map.getCenter().lat.toFixed(5);
+            const lon = map.getCenter().lng.toFixed(5);
+            const zoom = map.getZoom().toFixed(1);
             const dateStr = mapDate.getUTCFullYear() + "-" + ("0" + (mapDate.getUTCMonth() + 1)).slice(-2) + "-" + ("0" + mapDate.getUTCDate()).slice(-2)
             // Create a new URL based on the current URL plus the new lat, lon, zoom, and date.
             let url = new URL(window.location.href);
