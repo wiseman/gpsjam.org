@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>GPSJam GPS/GNSS Interference Map</title>
+    <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+    <link href="css/mapbox-gl.css" rel="stylesheet">
+    <script src="js/mapbox-gl.js"></script>
+    <script src="js/d3.v4.min.js"></script>
+    <script src="js/h3-js"></script>
+    <script src="js/geojson2h3.js"></script>
+
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'B612';
+            background: #222;
+            color: #ddd;
+        }
+
+        #map {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 100%;
+        }
+
+        h1 {
+            margin: 0cm 0cm 0.1cm 0cm;
+        }
+
+        h1 a {
+            text-decoration: none;
+            color: #ddd;
+        }
+
+        a {
+            text-decoration: none;
+            color: #df86fa
+        }
+
+        div#content {
+            position: absolute;
+            z-index: 1000;
+            padding: 0.1cm;
+            margin: 0.1cm;
+            background: #444;
+        }
+
+        input#datepicker {
+            font-size: 3em;
+            margin-top: 0.5cm;
+        }
+
+        input#datepicker.screenshot {
+            font-size: 2em;
+        }
+
+        @font-face {
+            font-family: B612;
+            src: url(fonts/B612-Regular.ttf);
+        }
+
+        .infolinks.screenshot {
+            display: none;
+        }
+    </style>
+
+    <!-- Opengraph Meta Tags -->
+    <meta property="og:url" content="<%= url %>">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="GPSJam GPS/GNSS Interference Map">
+    <meta property="og:description"
+        content="Phew!">
+    <meta property="og:image" content="/preview?u=<%= url %>">
+
+</head>
+
+<body>
+    <div id="content">
+        <h1><a href="/">gpsjam.org</a></h1>
+        Daily maps of GPS interference<span class="infolinks maybe-screenshot"> | <a href="/about/">About</a> | <a
+                href="/faq/">FAQ</a></span><br>
+        <input id="datepicker" class="maybe-screenshot" type="date" value="2022-07-01"><br>
+    </div>
+    <div id="map"></div>
+    <script>
+
+        // Parse string like "2022-05-13" into a Date.
+        function parseDate(str) {
+            var mdy = str.split('-');
+            return new Date(mdy[0], mdy[1] - 1, mdy[2]);
+        }
+
+        let mapDate = parseDate("2022-07-01");
+
+        const INTERFERENCE_HIGH = 'high';
+        const INTERFERENCE_MED = 'med';
+        const INTERFERENCE_LOW = 'low';
+
+        function interferenceLevel(good_gps, bad_gps) {
+            const bad_frac = (bad_gps - 1) / (bad_gps + good_gps);
+            if (bad_frac < 0.02) {
+                return INTERFERENCE_LOW
+            } else if (bad_frac < 0.10) {
+                return INTERFERENCE_MED
+            } else {
+                return INTERFERENCE_HIGH
+            }
+        }
+
+        // Given an H3 index, return true if its hexagon crosses the anti-meridian.
+        function isH3IndexAM(h3Index) {
+            const points = h3.h3ToGeoBoundary(h3Index);
+            for (let i = 0; i < points.length; i++) {
+                let p1 = points[i];
+                let p2 = points[(i + 1) % points.length];
+                if (Math.abs(p1[1] - p2[1]) > 180.0) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function loadH3file(date, map) {
+            // Convert date to a string like "2022-05-13" with zero-padding.
+            const dateStr = date.getUTCFullYear() + "-" + ("0" + (date.getUTCMonth() + 1)).slice(-2) + "-" + ("0" + date.getUTCDate()).slice(-2)
+            document.getElementById('datepicker').value = dateStr;
+            console.log(`Loading ${date}. Set picker to ${dateStr}`);
+            const h3Filename = dateStr + '-h3_4.csv'
+            let url = 'data/' + h3Filename;
+            // Loop over low, med, high and remove that layer.
+            d3.csv(
+                url,
+                allHexes => {
+                    if (map.getLayer('outline')) {
+                        map.removeLayer('outline');
+                    }
+                    for (level of ['low', 'med', 'high']) {
+                        const layerName = `${level}`;
+                        if (map.getLayer(layerName)) {
+                            map.removeLayer(`${level}`);
+                            map.removeSource(`${level}-interference-src`);
+                        }
+                    }
+                    addH3CsvToMap(allHexes, map);
+                });
+        }
+
+        let initLoad = true;
+        const queryString = window.location.search;
+        const urlParams = new URLSearchParams(queryString);
+
+        if (urlParams.has('screenshot')) {
+            for (e of document.getElementsByClassName('maybe-screenshot')) {
+                e.classList.add("screenshot");
+            }
+
+        }
+        // If the URL contains a date, load that date.
+        if (urlParams.has('date')) {
+            const dateStr = urlParams.get('date');
+            const date = parseDate(dateStr);
+            mapDate = date;
+        }
+
+        let mapCenter = [0, 40];
+        let mapZoom = 3;
+
+        // If the URL contains lat & lon, center the map on that location.
+        if (urlParams.has('lat') && urlParams.has('lon')) {
+            const lat = parseFloat(urlParams.get('lat'));
+            const lon = parseFloat(urlParams.get('lon'));
+            mapCenter = [lon, lat];
+        }
+        // If the URL contains &zoom, set the map zoom level.
+        if (urlParams.has('z')) {
+            const zoom = parseFloat(urlParams.get('z'));
+            mapZoom = zoom;
+        }
+
+        mapboxgl.accessToken = 'pk.eyJ1Ijoid2lzZW1hbiIsImEiOiJHbzAtOHgwIn0.Pj1Nx77LS1-ujzRKJVOttA';
+        const map = new mapboxgl.Map({
+            container: 'map',
+            style: 'mapbox://styles/mapbox/streets-v11',
+            center: mapCenter,
+            zoom: mapZoom,
+            projection: 'globe',
+            // maxZoom: 6
+        });
+
+        function addH3CsvToMap(rows, map) {
+            // Build GeoJSON from the H3 csv data. We build 3 GeoJSON
+            // features: One containing hexes with high interference
+            // levels, one with medium interference, and one with low
+            // interference.
+            let start = Date.now();
+            let hexes = {};
+            hexes[INTERFERENCE_LOW] = [];
+            hexes[INTERFERENCE_MED] = [];
+            hexes[INTERFERENCE_HIGH] = [];
+            // For now let's ignore the hexes that cross the anti-meridian.
+            // Someday, let's fix their coordinates. See
+            // https://docs.mapbox.com/mapbox-gl-js/example/line-across-180th-meridian/
+            allHexes = rows.filter(h => !isH3IndexAM(h.hex));
+            allHexes.forEach(h => {
+                let level = interferenceLevel(
+                    parseInt(h.count_good_aircraft),
+                    parseInt(h.count_bad_aircraft));
+                hexes[level].push(h.hex);
+            });
+            const lowGeoJson = h3SetToFeatureCollection(hexes[INTERFERENCE_LOW]);
+            const medGeoJson = h3SetToFeatureCollection(hexes[INTERFERENCE_MED]);
+            const highGeoJson = h3SetToFeatureCollection(hexes[INTERFERENCE_HIGH]);
+            console.log(`Creating GeoJSON took ${(Date.now() - start)} ms`);
+            map.addSource('low-interference-src', {
+                type: 'geojson',
+                data: lowGeoJson
+            });
+            map.addSource('high-interference-src', {
+                type: 'geojson',
+                data: highGeoJson
+            });
+            map.addSource('med-interference-src', {
+                type: 'geojson',
+                data: medGeoJson
+            });
+            map.addLayer({
+                'id': 'low',
+                'type': 'fill',
+                'source': 'low-interference-src',
+                'layout': {},
+                'paint': {
+                    'fill-color': '#33ff33',
+                    'fill-opacity': 0.5
+                }
+            });
+            map.addLayer({
+                'id': 'high',
+                'type': 'fill',
+                'source': 'high-interference-src',
+                'layout': {},
+                'paint': {
+                    'fill-color': '#ff3333',
+                    'fill-opacity': 0.5
+                }
+            });
+            map.addLayer({
+                'id': 'med',
+                'type': 'fill',
+                'source': 'med-interference-src', // reference the data source
+                'layout': {},
+                'paint': {
+                    'fill-color': '#ffff33',
+                    'fill-opacity': 0.5
+                }
+            });
+            console.log(`Added ${hexes[INTERFERENCE_LOW].length} low hexes`);
+            console.log(`Added ${hexes[INTERFERENCE_MED].length} med hexes`);
+            console.log(`Added ${hexes[INTERFERENCE_HIGH].length} high hexes`);
+            console.log(`Adding sources and layers took ${(Date.now() - start)} ms`);
+        }
+
+        map.on('load', () => {
+            map.once('idle', () => {
+                loadH3file(mapDate, map);
+            });
+        });
+
+        function updateUrl() {
+            // Put the map's current lat and lon into the URL.
+            const lat = map.getCenter().lat.toFixed(5);
+            const lon = map.getCenter().lng.toFixed(5);
+            const zoom = map.getZoom().toFixed(1);
+            const dateStr = mapDate.getUTCFullYear() + "-" + ("0" + (mapDate.getUTCMonth() + 1)).slice(-2) + "-" + ("0" + mapDate.getUTCDate()).slice(-2)
+            // Create a new URL based on the current URL plus the new lat, lon, zoom, and date.
+            let url = new URL(window.location.href);
+            url.searchParams.set('lat', lat);
+            url.searchParams.set('lon', lon);
+            url.searchParams.set('z', zoom);
+            url.searchParams.set('date', dateStr);
+            window.history.pushState({}, '', url.href);
+        }
+
+        map.on('moveend', updateUrl);
+        map.on('zoomend', updateUrl);
+
+        // When the date picker value changes, load that day's data.
+        document.getElementById('datepicker').addEventListener('change', function () {
+            const date = new Date(this.value);
+            mapDate = date;
+            loadH3file(date, map);
+            updateUrl();
+        });
+    </script>
+</body>
+
+</html>
