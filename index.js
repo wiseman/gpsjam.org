@@ -3,7 +3,7 @@ const express = require("express");
 const puppeteer = require("puppeteer");
 const { url } = require('inspector');
 
-const PORT = 8080;
+const PORT = process.env.PORT || 3000;
 
 app = express();
 
