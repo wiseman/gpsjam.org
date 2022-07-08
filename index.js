@@ -17,13 +17,6 @@ app.use('/js', express.static(path.join(__dirname, 'js')));
 app.use('/fonts', express.static(path.join(__dirname, 'fonts')));
 app.use('/data', express.static(path.join(__dirname, 'data')));
 
-// This line is nonsense, but without it Vercel doesn't include the views
-// directory and so the app throws an error because it can't find the templates.
-// There's probably a better way to do this, but I don't know it. Vercel
-// apparently does some magic inspection of the code and thinks we need this
-// directory if we reference it here.
-app.use('/views', express.static(path.join(__dirname, 'views')));
-
 //route for index page
 app.get("/", function (req, res) {
     let urlStr = req.protocol + '://' + req.hostname;
