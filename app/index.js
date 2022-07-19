@@ -101,7 +101,7 @@ app.get("/preview", async (req, res) => {
 
         // tell the page to visit the url
         await page.goto(url.toString());
-        await delay(18000);
+        await delay(20000);
         // take a screenshot and save it in the screenshots directory
         imageBuf = await page.screenshot();
         PREVIEW_CACHE.set(urlStr, imageBuf);
