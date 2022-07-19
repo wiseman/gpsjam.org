@@ -16,10 +16,7 @@ app.use(express.static('public'));
 
 //route for index page
 app.get("/", function (req, res) {
-    let urlStr = req.protocol + '://' + req.hostname;
-    if (PORT != 80) {
-        urlStr += ':' + PORT;
-    }
+    let urlStr = 'https://gpsjam.org';
     urlStr += req.url;
     const previewUrl = 'https://gpsjam.org/preview?u=' + encodeURIComponent(urlStr);
     const previewDesc = "Map showing potential GPS interference.";
