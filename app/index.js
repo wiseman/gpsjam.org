@@ -20,8 +20,9 @@ app.get("/", function (req, res) {
         urlStr += ':' + PORT;
     }
     urlStr += req.url;
-    const url = encodeURIComponent(urlStr);
-    res.render("index", { url });
+    const previewUrl = encodeURIComponent(urlStr);
+    const previewDesc = "Map showing potential GPS interference.";
+    res.render("index", { previewUrl, previewDesc });
 });
 
 
