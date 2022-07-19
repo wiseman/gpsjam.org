@@ -46,7 +46,7 @@ function delay(t, val) {
     });
 }
 
-const PREVIEW_CACHE = LRU({
+const PREVIEW_CACHE = new LRU({
     max: 100,
 });
 let PREVIEW_BROWSER;
