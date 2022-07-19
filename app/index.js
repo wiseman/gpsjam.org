@@ -21,9 +21,9 @@ app.get("/", function (req, res) {
         urlStr += ':' + PORT;
     }
     urlStr += req.url;
-    const url = encodeURIComponent(urlStr);
+    const previewUrl = 'https://gpsjam.org/preview?u=' + encodeURIComponent(urlStr);
     const previewDesc = "Map showing potential GPS interference.";
-    res.render("index", { url, previewDesc });
+    res.render("index", { previewUrl, previewDesc });
 });
 
 
