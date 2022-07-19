@@ -23,7 +23,7 @@ app.get("/", function (req, res) {
     urlStr += req.url;
     const previewUrl = 'https://gpsjam.org/preview?u=' + encodeURIComponent(urlStr);
     const previewDesc = "Map showing potential GPS interference.";
-    res.render("index", { previewUrl, previewDesc });
+    res.render("index", { url: urlStr, previewUrl, previewDesc });
 });
 
 
