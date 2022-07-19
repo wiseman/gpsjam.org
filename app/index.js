@@ -56,7 +56,9 @@ app.get("/preview", async (req, res) => {
     console.log(url);
 
     // launch a new headless browser
-    const browser = await puppeteer.launch();
+    const browser = await puppeteer.launch({
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    });
     const page = await browser.newPage();
 
     // set the viewport size
