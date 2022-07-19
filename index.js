@@ -11,11 +11,7 @@ app = express();
 //setting view engine to ejs
 app.set("view engine", "ejs");
 
-// Make css a static folder
-app.use('/css', express.static(path.join(__dirname, 'css')));
-app.use('/js', express.static(path.join(__dirname, 'js')));
-app.use('/fonts', express.static(path.join(__dirname, 'fonts')));
-app.use('/data', express.static(path.join(__dirname, 'data')));
+app.use(express.static('public'));
 
 //route for index page
 app.get("/", function (req, res) {
@@ -81,4 +77,3 @@ app.get("/preview", async (req, res) => {
     res.setHeader('Content-Type', 'image/png');
     res.send(imageBuf);
 });
-
