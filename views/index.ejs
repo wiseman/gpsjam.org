@@ -280,6 +280,8 @@
                         const dateInfo = {};
                         dateInfo.latestDate = parseUtcDate(rows[rows.length - 1].date);
                         console.log(`Set latest date to ${dateInfo.latestDate}`);
+                        dateInfo.earliestDate = parseUtcDate(rows[0].date);
+                        console.log(`Set earliest date to ${dateInfo.earliestDate}`);
                         dateInfo.byDate = {};
                         for (let row of rows) {
                             let date = parseUtcDate(row.date);
@@ -361,9 +363,12 @@
                 const date = parseUtcDate(dateStr);
                 mapDate = date;
                 // Set the datepicker date immediately to match the URL date.
-                document.getElementById('datepicker').value = dateStr
+                const datePicker = document.getElementById('datepicker');
+                datepicker.value = dateStr
                 initMap();
                 dateInfo = await loadManifest();
+                datePicker.min = formatDate(dateInfo.earliestDate);
+                datePicker.max = formatDate(dateInfo.latestDate);
                 console.log(`Loaded manifest in ${(Date.now() - pageStartTime)} ms`);
             } else {
                 // If the URL doesn't contain a date, then load the date
@@ -371,7 +376,10 @@
                 dateInfo = await loadManifest();
                 console.log(`Loaded manifest in ${(Date.now() - pageStartTime)} ms`);
                 mapDate = dateInfo.latestDate;
-                document.getElementById('datepicker').value = formatDate(mapDate);
+                const datePicker = document.getElementById('datepicker');
+                datepicker.value = formatDate(mapDate);
+                datePicker.min = formatDate(dateInfo.earliestDate);
+                datePicker.max = formatDate(dateInfo.latestDate);
                 initMap();
             }
         })();
