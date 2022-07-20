@@ -95,11 +95,33 @@
     </div>
     <div id="map"></div>
     <script>
+        let pageStartTime = Date.now();
+
+        let mapDate;
+        let mapCenter = [0, 40];
+        let mapZoom = 3;
+        let dateInfo;
+        let map;
 
         // Parse string like "2022-05-13" into a Date.
-        function parseDate(str) {
+        function parseLocalDate(str) {
+            // console.log(`Parsing local date ${str}`);
+            var mdy = str.split('-');
+            let date = new Date(mdy[0], mdy[1] - 1, mdy[2]);
+            return new Date(date.getTime() + date.getTimezoneOffset() * 60 * 1000);
+        }
+
+        function parseUtcDate(str) {
+            // console.log(`Parsing UTC date ${str}`);
             var mdy = str.split('-');
             return new Date(mdy[0], mdy[1] - 1, mdy[2]);
+        }
+
+        function formatDate(date) {
+            const s = date.getUTCFullYear() + "-" + ("0" + (date.getUTCMonth() + 1)).slice(-2) + "-" + ("0" + date.getUTCDate()).slice(-2)
+            console.log(date);
+            console.log(s);
+            return s;
         }
 
         const INTERFERENCE_HIGH = 'high';
@@ -134,10 +156,10 @@
 
         function loadH3file(date, map) {
             // Convert date to a string like "2022-05-13" with zero-padding.
-            const dateStr = date.getUTCFullYear() + "-" + ("0" + (date.getUTCMonth() + 1)).slice(-2) + "-" + ("0" + date.getUTCDate()).slice(-2)
-            document.getElementById('datepicker').value = dateStr;
-            console.log(`Loading ${date}. Set picker to ${dateStr}`);
+            const dateStr = formatDate(date);
+            // document.getElementById('datepicker').value = dateStr;
             const h3Filename = dateStr + '-h3_4.csv'
+            console.log(`Loading ${date} from ${h3Filename}`);
             let url = 'data/' + h3Filename;
             // Loop over low, med, high and remove that layer.
             d3.csv(
@@ -233,8 +255,8 @@
             });
         }
 
-        function updateUrl() {
-            // Put the map's current lat and lon into the URL.
+        // Puts the current lat, lon, zoom, and date into the URL.
+        function syncStateToUrl() {
             const lat = map.getCenter().lat.toFixed(5);
             const lon = map.getCenter().lng.toFixed(5);
             const zoom = map.getZoom().toFixed(1);
@@ -248,32 +270,77 @@
             window.history.pushState({}, '', url.href);
         }
 
+        async function loadManifest() {
+            return new Promise((resolve, reject) => {
+                console.log('Loading manifest')
+                const url = 'data/manifest.csv';
+                d3.csv(
+                    url,
+                    rows => {
+                        const dateInfo = {};
+                        dateInfo.latestDate = parseUtcDate(rows[rows.length - 1].date);
+                        console.log(`Set latest date to ${dateInfo.latestDate}`);
+                        dateInfo.byDate = {};
+                        for (let row of rows) {
+                            let date = parseUtcDate(row.date);
+                            dateInfo.byDate[date] = row.count;
+                        }
+                        resolve(dateInfo);
+                    }
+                );
+            });
+        }
 
-        let pageStartTime = Date.now();
+        function initMap() {
+            mapboxgl.accessToken = 'pk.eyJ1Ijoid2lzZW1hbiIsImEiOiJHbzAtOHgwIn0.Pj1Nx77LS1-ujzRKJVOttA';
+            map = new mapboxgl.Map({
+                container: 'map',
+                style: 'mapbox://styles/mapbox/streets-v11',
+                center: mapCenter,
+                zoom: mapZoom,
+                projection: 'globe',
+                // maxZoom: 6
+            });
 
-        let mapDate = parseDate("2022-07-01");
+            map.on('screenshot-ready', () => {
+                console.log(`Screenshot ready in ${(Date.now() - pageStartTime)} ms`);
+            });
+            map.on('load', () => {
+                console.log(`Map loaded in ${(Date.now() - pageStartTime)} ms`);
+                // map.once('idle', () => {
+                // console.log(`Map load idle in ${(Date.now() - startTime)} ms`);
+                loadH3file(mapDate, map);
+                // });
+            });
+
+            map.on('moveend', syncStateToUrl);
+            map.on('zoomend', syncStateToUrl);
+        }
+
 
         const queryString = window.location.search;
         const urlParams = new URLSearchParams(queryString);
 
+        // When the date picker value changes, load that day's data.
+        document.getElementById('datepicker').addEventListener('change', function () {
+            console.log(`Date changed to ${this.value}`);
+            // Convert to UTC date.
+
+            const date = parseLocalDate(this.value);
+            mapDate = date;
+            loadH3file(date, map);
+            syncStateToUrl();
+        });
+
+        // Now handle URL parameters.
+
+        // Check whether we're in screenshot mode.
         if (urlParams.has('screenshot')) {
             for (e of document.getElementsByClassName('maybe-screenshot')) {
                 e.classList.add("screenshot");
             }
 
         }
-        // If the URL contains a date, load that date.
-        if (urlParams.has('date')) {
-            const dateStr = urlParams.get('date');
-            const date = parseDate(dateStr);
-            mapDate = date;
-            // Set the datepicker date immediately to match the URL date.
-            document.getElementById('datepicker').value = dateStr
-        }
-
-        let mapCenter = [0, 40];
-        let mapZoom = 3;
-
         // If the URL contains lat & lon, center the map on that location.
         if (urlParams.has('lat') && urlParams.has('lon')) {
             const lat = parseFloat(urlParams.get('lat'));
@@ -286,37 +353,28 @@
             mapZoom = zoom;
         }
 
-        mapboxgl.accessToken = 'pk.eyJ1Ijoid2lzZW1hbiIsImEiOiJHbzAtOHgwIn0.Pj1Nx77LS1-ujzRKJVOttA';
-        const map = new mapboxgl.Map({
-            container: 'map',
-            style: 'mapbox://styles/mapbox/streets-v11',
-            center: mapCenter,
-            zoom: mapZoom,
-            projection: 'globe',
-            // maxZoom: 6
-        });
-
-        map.on('screenshot-ready', () => {
-            console.log(`Screenshot ready in ${(Date.now() - pageStartTime)} ms`);
-        });
-        map.on('load', () => {
-            console.log(`Map loaded in ${(Date.now() - pageStartTime)} ms`);
-            // map.once('idle', () => {
-            // console.log(`Map load idle in ${(Date.now() - startTime)} ms`);
-            loadH3file(mapDate, map);
-            // });
-        });
-
-        map.on('moveend', updateUrl);
-        map.on('zoomend', updateUrl);
-
-        // When the date picker value changes, load that day's data.
-        document.getElementById('datepicker').addEventListener('change', function () {
-            const date = new Date(this.value);
-            mapDate = date;
-            loadH3file(date, map);
-            updateUrl();
-        });
+        (async function () {
+            if (urlParams.has('date')) {
+                // If the URL contains a date, load that date and display it,
+                // then load the date manifest.
+                const dateStr = urlParams.get('date');
+                const date = parseUtcDate(dateStr);
+                mapDate = date;
+                // Set the datepicker date immediately to match the URL date.
+                document.getElementById('datepicker').value = dateStr
+                initMap();
+                dateInfo = await loadManifest();
+                console.log(`Loaded manifest in ${(Date.now() - pageStartTime)} ms`);
+            } else {
+                // If the URL doesn't contain a date, then load the date
+                // manifest and use that to choose a date to display.
+                dateInfo = await loadManifest();
+                console.log(`Loaded manifest in ${(Date.now() - pageStartTime)} ms`);
+                mapDate = dateInfo.latestDate;
+                document.getElementById('datepicker').value = formatDate(mapDate);
+                initMap();
+            }
+        })();
     </script>
 </body>
 
