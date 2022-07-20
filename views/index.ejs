@@ -91,7 +91,7 @@
         <h1><a href="/">GPSJam</a></h1>
         Daily maps of GPS interference<span class="infolinks maybe-screenshot"> | <a href="/about/">About</a> | <a
                 href="/faq/">FAQ</a></span><br>
-        <input id="datepicker" class="maybe-screenshot" type="date" value="2022-07-01"><br>
+        <input id="datepicker" class="maybe-screenshot" type="date"><br>
     </div>
     <div id="map"></div>
     <script>
@@ -102,14 +102,12 @@
             return new Date(mdy[0], mdy[1] - 1, mdy[2]);
         }
 
-        let mapDate = parseDate("2022-07-01");
-
         const INTERFERENCE_HIGH = 'high';
         const INTERFERENCE_MED = 'med';
         const INTERFERENCE_LOW = 'low';
 
-        let pageStartTime = Date.now();
-
+        // Given counts for a single hex of aircraft with good GPS and aircraft
+        // with bad GPS, computes the interference level.
         function interferenceLevel(good_gps, bad_gps) {
             const bad_frac = (bad_gps - 1) / (bad_gps + good_gps);
             if (bad_frac < 0.02) {
@@ -158,48 +156,6 @@
                     addH3CsvToMap(allHexes, map);
                 });
         }
-
-        let initLoad = true;
-        const queryString = window.location.search;
-        const urlParams = new URLSearchParams(queryString);
-
-        if (urlParams.has('screenshot')) {
-            for (e of document.getElementsByClassName('maybe-screenshot')) {
-                e.classList.add("screenshot");
-            }
-
-        }
-        // If the URL contains a date, load that date.
-        if (urlParams.has('date')) {
-            const dateStr = urlParams.get('date');
-            const date = parseDate(dateStr);
-            mapDate = date;
-        }
-
-        let mapCenter = [0, 40];
-        let mapZoom = 3;
-
-        // If the URL contains lat & lon, center the map on that location.
-        if (urlParams.has('lat') && urlParams.has('lon')) {
-            const lat = parseFloat(urlParams.get('lat'));
-            const lon = parseFloat(urlParams.get('lon'));
-            mapCenter = [lon, lat];
-        }
-        // If the URL contains &zoom, set the map zoom level.
-        if (urlParams.has('z')) {
-            const zoom = parseFloat(urlParams.get('z'));
-            mapZoom = zoom;
-        }
-
-        mapboxgl.accessToken = 'pk.eyJ1Ijoid2lzZW1hbiIsImEiOiJHbzAtOHgwIn0.Pj1Nx77LS1-ujzRKJVOttA';
-        const map = new mapboxgl.Map({
-            container: 'map',
-            style: 'mapbox://styles/mapbox/streets-v11',
-            center: mapCenter,
-            zoom: mapZoom,
-            projection: 'globe',
-            // maxZoom: 6
-        });
 
         function addH3CsvToMap(rows, map) {
             // Build GeoJSON from the H3 csv data. We build 3 GeoJSON
@@ -277,17 +233,6 @@
             });
         }
 
-        map.on('screenshot-ready', () => {
-            console.log(`Screenshot ready in ${(Date.now() - pageStartTime)} ms`);
-        });
-        map.on('load', () => {
-            console.log(`Map loaded in ${(Date.now() - pageStartTime)} ms`);
-            // map.once('idle', () => {
-            // console.log(`Map load idle in ${(Date.now() - startTime)} ms`);
-            loadH3file(mapDate, map);
-            // });
-        });
-
         function updateUrl() {
             // Put the map's current lat and lon into the URL.
             const lat = map.getCenter().lat.toFixed(5);
@@ -302,6 +247,65 @@
             url.searchParams.set('date', dateStr);
             window.history.pushState({}, '', url.href);
         }
+
+
+        let pageStartTime = Date.now();
+
+        let mapDate = parseDate("2022-07-01");
+
+        const queryString = window.location.search;
+        const urlParams = new URLSearchParams(queryString);
+
+        if (urlParams.has('screenshot')) {
+            for (e of document.getElementsByClassName('maybe-screenshot')) {
+                e.classList.add("screenshot");
+            }
+
+        }
+        // If the URL contains a date, load that date.
+        if (urlParams.has('date')) {
+            const dateStr = urlParams.get('date');
+            const date = parseDate(dateStr);
+            mapDate = date;
+            // Set the datepicker date immediately to match the URL date.
+            document.getElementById('datepicker').value = dateStr
+        }
+
+        let mapCenter = [0, 40];
+        let mapZoom = 3;
+
+        // If the URL contains lat & lon, center the map on that location.
+        if (urlParams.has('lat') && urlParams.has('lon')) {
+            const lat = parseFloat(urlParams.get('lat'));
+            const lon = parseFloat(urlParams.get('lon'));
+            mapCenter = [lon, lat];
+        }
+        // If the URL contains &zoom, set the map zoom level.
+        if (urlParams.has('z')) {
+            const zoom = parseFloat(urlParams.get('z'));
+            mapZoom = zoom;
+        }
+
+        mapboxgl.accessToken = 'pk.eyJ1Ijoid2lzZW1hbiIsImEiOiJHbzAtOHgwIn0.Pj1Nx77LS1-ujzRKJVOttA';
+        const map = new mapboxgl.Map({
+            container: 'map',
+            style: 'mapbox://styles/mapbox/streets-v11',
+            center: mapCenter,
+            zoom: mapZoom,
+            projection: 'globe',
+            // maxZoom: 6
+        });
+
+        map.on('screenshot-ready', () => {
+            console.log(`Screenshot ready in ${(Date.now() - pageStartTime)} ms`);
+        });
+        map.on('load', () => {
+            console.log(`Map loaded in ${(Date.now() - pageStartTime)} ms`);
+            // map.once('idle', () => {
+            // console.log(`Map load idle in ${(Date.now() - startTime)} ms`);
+            loadH3file(mapDate, map);
+            // });
+        });
 
         map.on('moveend', updateUrl);
         map.on('zoomend', updateUrl);
