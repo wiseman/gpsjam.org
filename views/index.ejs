@@ -81,8 +81,7 @@
     <meta property="twitter:url" content="<%= url %>">
     <meta name="twitter:title" content="GPSJam GPS/GNSS Interference Map">
     <meta name="twitter:description" content="<%= previewDesc %>">
-    <meta name="twitter:image"
-        content="<%= previewUrl %>">
+    <meta name="twitter:image" content="<%= previewUrl %>">
 
 
 </head>
@@ -108,6 +107,8 @@
         const INTERFERENCE_HIGH = 'high';
         const INTERFERENCE_MED = 'med';
         const INTERFERENCE_LOW = 'low';
+
+        let pageStartTime = Date.now();
 
         function interferenceLevel(good_gps, bad_gps) {
             const bad_frac = (bad_gps - 1) / (bad_gps + good_gps);
@@ -269,13 +270,22 @@
             console.log(`Added ${hexes[INTERFERENCE_LOW].length} low hexes`);
             console.log(`Added ${hexes[INTERFERENCE_MED].length} med hexes`);
             console.log(`Added ${hexes[INTERFERENCE_HIGH].length} high hexes`);
-            console.log(`Adding sources and layers took ${(Date.now() - start)} ms`);
+            console.log(`${Date.now()} Adding sources and layers took ${(Date.now() - start)} ms`);
+            map.on('idle', () => {
+                console.log(`Map idle in ${(Date.now() - pageStartTime)} ms`);
+                map.fire('screenshot-ready');
+            });
         }
 
+        map.on('screenshot-ready', () => {
+            console.log(`Screenshot ready in ${(Date.now() - pageStartTime)} ms`);
+        });
         map.on('load', () => {
-            map.once('idle', () => {
-                loadH3file(mapDate, map);
-            });
+            console.log(`Map loaded in ${(Date.now() - pageStartTime)} ms`);
+            // map.once('idle', () => {
+            // console.log(`Map load idle in ${(Date.now() - startTime)} ms`);
+            loadH3file(mapDate, map);
+            // });
         });
 
         function updateUrl() {

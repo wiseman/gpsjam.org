@@ -98,7 +98,9 @@ app.get("/preview", async (req, res) => {
 
         // tell the page to visit the url
         await page.goto(url.toString());
-        await delay(16000);
+        const startTime = Date.now();
+        await waitForScreenshotReady(page);
+        console.log('Screenshot ready in ' + (Date.now() - startTime) + 'ms');
         // take a screenshot and save it in the screenshots directory
         imageBuf = await page.screenshot();
         PREVIEW_CACHE.set(urlStr, imageBuf);
@@ -109,3 +111,21 @@ app.get("/preview", async (req, res) => {
     res.setHeader('Content-Type', 'image/png');
     res.send(imageBuf);
 });
+
+async function waitForScreenshotReady(page, seconds) {
+    seconds = seconds || 30;
+    // use race to implement a timeout
+    return Promise.race([
+        // add event listener and wait for event to fire before returning
+        page.evaluate(() => {
+            return new Promise((resolve, reject) => {
+                map.on('screenshot-ready', () => {
+                    resolve(); // resolves when the event fires
+                });
+            });
+        }),
+
+        // if the event does not fire fast enough then exit.
+        new Promise(resolve => setTimeout(resolve, seconds * 1000))
+    ]);
+}
