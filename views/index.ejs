@@ -41,12 +41,57 @@
             color: #df86fa
         }
 
-        div#content {
+        #content {
             position: absolute;
             z-index: 1000;
             padding: 0.1cm;
             margin: 0.1cm;
             background: #444;
+        }
+
+        #legend {
+            position: absolute;
+            bottom: 2em;
+            left: 0;
+            background: #eee;
+            color: #444;
+            padding: 0.1cm;
+            margin: 0.1cm;
+            border: 1px solid #444;
+
+        }
+
+        #legend.screenshot {
+            display: none;
+        }
+
+        #legend td {
+            padding: 0;
+            margin: 0;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+        }
+
+        .legend-box {
+            display: inline-block;
+            width: 1em;
+            height: 1em;
+            margin: 0.2em 0.3em 0.1em 0.1em;
+        }
+
+        .legend-high {
+            background-color: #ff3333;
+        }
+
+        .legend-med {
+            background-color: #ffdd33;
+        }
+
+        .legend-low {
+            background-color: #33ff33;
         }
 
         input#datepicker {
@@ -94,6 +139,32 @@
         <input id="datepicker" class="maybe-screenshot" type="date"><br>
     </div>
     <div id="map"></div>
+    <div id="legend" class="maybe-screenshot">
+        Level of GPS interference
+        <!--
+        <div class="legend-item"><span class="legend-box legend-low">&nbsp;</span> Low, 0-2%</div>
+        <div class="legend-item"><span class="legend-box legend-med">&nbsp;</span> Medium, 2-10%</div>
+        <div class="legend-item"><span class="legend-box legend-high">&nbsp;</span> High, &gt; 10%</div>
+        -->
+        <table>
+            <tr>
+                <td><span class="legend-box legend-low">&nbsp;</span></td>
+                <td>Low</td>
+                <td>0-2%</td>
+            </tr>
+            <tr>
+                <td><span class="legend-box legend-med">&nbsp;</span></td>
+                <td>Medium</td>
+                <td>2-10%</td>
+            </tr>
+            <tr>
+                <td><span class="legend-box legend-high">&nbsp;</span></td>
+                <td>High</td>
+                <td>&gt; 10%</td>
+            </tr>
+        </table>
+    </div>
+
     <script>
         let pageStartTime = Date.now();
 
