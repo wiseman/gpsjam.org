@@ -55,25 +55,27 @@ class Previewer {
 
     async getPreview(url) {
         return new Promise(async (resolve, reject) => {
-            if (this.cache.has(url.toString())) {
+            const cachedImage = this.cache.get(url.toString());
+            if (cachedImage) {
                 console.log(`Cache hit for screenshot of url ${url}`);
-                resolve(this.cache.get(url.toString()));
-            }
-            if (this.urlsInProgress[url]) {
-                console.log(`Waiting for screenshot of ${url}, already in progress.`);
-                this.urlsInProgress[url].push({ resolve, reject });
+                resolve(cachedImage);
             } else {
-                console.log(`Getting screenshot of ${url}`);
-                this.urlsInProgress[url] = [{ resolve, reject }];
-                const image = await this.getPreviewInternal(url);
-                this.cache.set(url.toString(), image);
-                // Since we've put the image in the cache, no more requests will
-                // be added to the queue for this url.
-                const promises = [...this.urlsInProgress[url]];
-                this.urlsInProgress[url].forEach(({ resolve, reject }) => {
-                    resolve(image);
-                });
-                delete this.urlsInProgress[url];
+                if (this.urlsInProgress[url]) {
+                    this.urlsInProgress[url].push({ resolve, reject });
+                    console.log(`Waiting for screenshot of ${url}, already in progress.`);
+                } else {
+                    console.log(`Getting screenshot of ${url}`);
+                    this.urlsInProgress[url] = [{ resolve, reject }];
+                    const image = await this.getPreviewInternal(url);
+                    this.cache.set(url.toString(), image);
+                    // Since we've put the image in the cache, no more requests will
+                    // be added to the queue for this url.
+                    const promises = [...this.urlsInProgress[url]];
+                    this.urlsInProgress[url].forEach(({ resolve, reject }) => {
+                        resolve(image);
+                    });
+                    delete this.urlsInProgress[url];
+                }
             }
         });
     }
