@@ -54,27 +54,27 @@ class Previewer {
     }
 
     async getPreview(url) {
+        const urlStr = url.toString();
         return new Promise(async (resolve, reject) => {
-            const cachedImage = this.cache.get(url.toString());
+            const cachedImage = this.cache.get(urlStr);
             if (cachedImage) {
                 console.log(`Cache hit for screenshot of url ${url}`);
                 resolve(cachedImage);
             } else {
-                if (this.urlsInProgress[url]) {
-                    this.urlsInProgress[url].push({ resolve, reject });
+                if (this.urlsInProgress[urlStr]) {
+                    this.urlsInProgress[urlStr].push({ resolve, reject });
                     console.log(`Waiting for screenshot of ${url}, already in progress.`);
                 } else {
                     console.log(`Getting screenshot of ${url}`);
-                    this.urlsInProgress[url] = [{ resolve, reject }];
+                    this.urlsInProgress[urlStr] = [{ resolve, reject }];
                     const image = await this.getPreviewInternal(url);
-                    this.cache.set(url.toString(), image);
+                    this.cache.set(urlStr, image);
                     // Since we've put the image in the cache, no more requests will
                     // be added to the queue for this url.
-                    const promises = [...this.urlsInProgress[url]];
-                    this.urlsInProgress[url].forEach(({ resolve, reject }) => {
+                    this.urlsInProgress[urlStr].forEach(({ resolve, reject }) => {
                         resolve(image);
                     });
-                    delete this.urlsInProgress[url];
+                    delete this.urlsInProgress[urlStr];
                 }
             }
         });
