@@ -163,9 +163,6 @@
             d3.csv(
                 url,
                 allHexes => {
-                    if (map.getLayer('outline')) {
-                        map.removeLayer('outline');
-                    }
                     for (level of ['low', 'med', 'high']) {
                         const layerName = `${level}`;
                         if (map.getLayer(layerName)) {
