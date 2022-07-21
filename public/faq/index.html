@@ -1,8 +1,59 @@
 <html>
-    <head>
-        <title>GPSJam FAQ</title>
-    </head>
-    <body>
-        TBD.
-    </body>
+
+<head>
+    <title>GPSJam FAQ</title>
+</head>
+
+<body>
+    <h1>FAQ</h1>
+
+    <h2>What exactly does this map show?</h2>
+
+    <p>Many aircraft broadcast information about how accurate their navigation
+        system, which is almost always GPS, is at any given moment. The GPSJam map
+        aggregates that data over 24 hours in time bins it into a hexagonal map.
+        Green hexagons show where more than 98% of all aircraft who flew through
+        that area reported good navigation accuracy. Yellow hexagons show where
+        between 2% and 10% of aircraft reported low navigation accuracy. Red
+        hexagons show where more than 10% of aircraft reported low navigation
+        accuracy.</p>
+
+    <h2>What is the source of your data?</h2>
+
+    <p>Many aircraft broadcast digital radio messages (ADS-B) that contain
+        information about their GPS accuracy. ADS-B Exchange is a network of
+        thousands of enthusiasts who receive those signals. I use the ADS-B Exchange
+        API to collect and process the data and build maps from it.
+    </p>
+
+    <h2>What can cause an aircraft to report low navigation accuracy?</h2>
+
+    <p>Most aircraft with ADS-B are using GPS, and from what I can tell the most
+        common reason for aircraft GPS systems to have degraded accuracy is jamming
+        by military systems. At least, the vast majority of aircraft that I see with
+        bad GPS accuracy are flying near conflict zones where GPS jamming is known
+        to occur.</p>
+
+    <p>Other causes of low GPS accuracy:</p>
+    <ol>
+        <li>Testing of military jamming systems outside of conflict zones
+            (common in the southwestern United States)</li>
+        <li>Jamming systems used to protect Russian oligarchs from drones</li>
+    </ol>
+
+    <h2>What are the conflict zones where GPS jamming is regularly observed?</h2>
+
+    <p>The conflict zones where I've most often observed GPS jamming include the following:
+    <ul>
+        <li>Much of the Middle East, especially including the eastern
+            Mediterranean. Iraq, Lebanon, Cyprus, Turkey, Armenia all regularly see
+            GPS jamming activity. In North Africa, Libya.</li>
+        <li>In Europe, Poland, Romania, Lithuania, Latvia, Kaliningrad, and
+            Finland sometimes show presumed jamming activity, depending on how
+            active Russia is.</li>
+    </ul>
+    </p>
+
+</body>
+
 </html>
