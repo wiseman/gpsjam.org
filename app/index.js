@@ -36,14 +36,12 @@ app.listen(PORT, function () {
 });
 
 
-function delay(t, val) {
-    return new Promise(function (resolve) {
-        setTimeout(function () {
-            resolve(val);
-        }, t);
-    });
-}
-
+// This preview screenshot generator does 3 things:
+// 1. Uses puppeteer to render the page at a given URL and return a PNG.
+// 2. Serializes puppeteer usage so we only screenshot one page at a time, to
+//    keep memory usage down.
+// 3. Caches screenshots (in memory) so we don't have to re-render a particular
+//    URL every time.
 class Previewer {
     constructor() {
         this.browser = null;
@@ -58,19 +56,25 @@ class Previewer {
         return new Promise(async (resolve, reject) => {
             const cachedImage = this.cache.get(urlStr);
             if (cachedImage) {
+                // If the url is already in the cache, we're done.
                 console.log(`Cache hit for screenshot of url ${url}`);
                 resolve(cachedImage);
             } else {
                 if (this.urlsInProgress[urlStr]) {
+                    // If someone else is already rendering this url, wait for
+                    // them to finish then get it from the cache.
                     this.urlsInProgress[urlStr].push({ resolve, reject });
                     console.log(`Waiting for screenshot of ${url}, already in progress.`);
                 } else {
+                    // OK, fine, it's up to us to render this url.
                     console.log(`Getting screenshot of ${url}`);
                     this.urlsInProgress[urlStr] = [{ resolve, reject }];
                     const image = await this.getPreviewInternal(url);
                     this.cache.set(urlStr, image);
-                    // Since we've put the image in the cache, no more requests will
-                    // be added to the queue for this url.
+                    // Notify anyone else who was waiting for this url (since
+                    // we've put the image in the cache, no more requests will
+                    // be added to the queue for this url so urlsInProgress
+                    // won't be changed under our noses).
                     this.urlsInProgress[urlStr].forEach(({ resolve, reject }) => {
                         resolve(image);
                     });
@@ -81,9 +85,12 @@ class Previewer {
     }
 
     async getPreviewInternal(url) {
-        // Use the browserMutex to serialize this.
+        // Use the browserMutex to ensure we only ever screenshot one url at a
+        // time.
         return await this.browserMutex.runExclusive(async () => {
             if (!this.browser || this.browserUseCount > 10) {
+                // Not sure if this is necessary, but just in case let's create
+                // a fresh browser after every 10 screenshots.
                 console.log('Creating new browser');
                 if (this.browser) {
                     console.log('Closing old browser');
@@ -91,6 +98,8 @@ class Previewer {
                 }
                 this.browser = await puppeteer.launch({
                     headless: true,
+                    // Seems like we need to disable the sandbox to get this to
+                    // work with most cloud providers (Vercel, bitnami).
                     args: ['--no-sandbox', '--disable-setuid-sandbox'],
                 });
                 this.browserUseCount = 0;
@@ -118,20 +127,20 @@ class Previewer {
         });
     }
 
+    // Waits for the custom event the page triggers to indicate that the map
+    // layers are fully loaded and displayed and it's a good time to take a
+    // screenshot.
     async waitForScreenshotReady(page, seconds) {
         seconds = seconds || 30;
-        // use race to implement a timeout
+        // Use race to implement a timeout.
         return Promise.race([
-            // add event listener and wait for event to fire before returning
             page.evaluate(() => {
                 return new Promise((resolve, reject) => {
                     map.on('screenshot-ready', () => {
-                        resolve(); // resolves when the event fires
+                        resolve();
                     });
                 });
             }),
-
-            // if the event does not fire fast enough then exit.
             new Promise(resolve => setTimeout(resolve, seconds * 1000))
         ]);
     }
@@ -148,11 +157,17 @@ app.get("/preview", async (req, res) => {
     console.log('Screenshotting ' + urlStr);
     const url = new URL(urlStr);
     const params = url.searchParams;
+    // Since we're rendering using a (virtual) browser window that's much
+    // smaller than the size most people are looking at (800x418), as a hack we
+    // zoom out a bit to still kinda show the same general region.
     const zoom = parseFloat(params.get('z')) - 1.0;
     const lat = parseFloat(params.get('lat'));
     const lon = parseFloat(params.get('lon'));
     if ((lat && !lon) || (!lat && lon)) {
-        // Return a 404 if the query params are incomplete.
+        // Return a 404 if the query params are incomplete. The slackbot agent
+        // always makes additional requests for mangled versions of the URL and
+        // I don't know why, and we don't want to spend the resources to render
+        // broken versions of the map.
         console.log('Incomplete query params.');
         res.status(404).send('Incomplete query params');
         return;
