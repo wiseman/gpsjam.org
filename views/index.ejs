@@ -111,6 +111,38 @@
         .infolinks.screenshot {
             display: none;
         }
+
+        #adsbx-credits {
+            position: absolute;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0.8;
+            position: absolute;
+            bottom: 0em;
+            left: 0em;
+            width: 100%;
+            z-index: 99;
+        }
+
+        .adsbx-credits-text {
+            color: #111;
+            font-size: 13px;
+        }
+
+        .adsbx-credits-image {
+            display: block;
+            width: 24px;
+            height: 24px;
+            background-size: 24px 24px;
+            background-repeat: no-repeat;
+            background-position: 0;
+            background-color: transparent;
+            border: none;
+            background-image: url("images/adsbx-stealth-48x48.png");
+            opacity: 0.7;
+            margin: 4px;
+        }
     </style>
 
     <!-- Opengraph Meta Tags -->
@@ -139,6 +171,11 @@
         <input id="datepicker" class="maybe-screenshot" type="date"><br>
     </div>
     <div id="map"></div>
+    <div id="adsbx-credits">
+        <span class="adsbx-credits-text">Data provided by</span>
+        <span class="adsbx-credits-image"></span>
+        <span class="adsbx-credits-text">adsbexchange.com</span>
+    </div>
     <div id="legend" class="maybe-screenshot">
         Level of GPS interference
         <!--
